@@ -1,0 +1,71 @@
+Metadata-Version: 2.4
+Name: plaso-dl
+Version: 0.1.0
+Summary: Plaso live-class HLS downloader (learning project)
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.27
+Requires-Dist: platformdirs>=4.2
+Requires-Dist: rich>=13.7
+Requires-Dist: typer>=0.12
+Requires-Dist: websocket-client>=1.8
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+
+# plaso-dl
+
+Learning-purpose CLI to batch download Plaso historical live-class recordings via HLS.
+
+Non-goals:
+- No DRM/decryption support.
+- No bypassing paywalls, CAPTCHAs, or platform protections.
+
+## Setup
+
+1) Install Python 3.10+
+2) Create venv and install:
+
+```bash
+cd D:\Project\plaso-dl
+python -m venv .venv
+.venv\Scripts\python -m pip install -U pip
+.venv\Scripts\python -m pip install -e .[dev]
+```
+
+3) Ensure `ffmpeg` is available in PATH:
+
+```bash
+ffmpeg -version
+```
+
+## Usage
+
+Set your token (captured from the desktop app DevTools request header `access-token`):
+
+```bash
+python -m plaso_dl auth set-token "<your-token>"
+```
+
+Or auto-capture token (recommended):
+
+```bash
+python -m plaso_dl auth auto-capture --host 127.0.0.1 --port 9222 --timeout 180
+```
+
+Before running auto-capture, start Plaso with remote debugging enabled:
+
+```bash
+"D:\PlasoCloud\plaso-yxt.exe" --remote-debugging-port=9222
+```
+
+List courses:
+
+```bash
+python -m plaso_dl courses list
+```
+
+Download a few:
+
+```bash
+python -m plaso_dl download all --out "D:/Project/plaso-dl/downloads" --limit 3
+```
