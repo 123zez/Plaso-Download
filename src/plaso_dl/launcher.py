@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import getpass
 from pathlib import Path
 import re
-import subprocess
-import time
 from typing import Any, Callable
 
 from rich.console import Console
@@ -17,8 +16,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from .api import list_courses, list_groups
-from .auth_capture import capture_access_token
+from .api import list_courses, list_groups, login_with_password
 from .config import ConfigStore
 from .download import download_hls_to_mp4
 from .models import CourseItem, GroupItem
@@ -31,6 +29,7 @@ console = Console()
 WELCOME_TEXT = "欢迎使用 Plaso DL 全流程助手"
 INITIAL_MENU_TEXT = "1) 登录  2) 设置  3) 退出"
 LOGGED_IN_MENU_TEXT = "1) 获取课程目录  2) 按班级获取课程视频  3) 设置  4) 退出"
+LOGIN_METHOD_MENU_TEXT = "1) 账号密码登录  2) 返回"
 DOWNLOAD_MENU_TEXT = "1) 单个下载  2) 多个下载  3) 全部下载  4) 更新(仅缺失)  5) 返回"
 
 
@@ -119,40 +118,35 @@ def _print_courses(items: list[CourseItem]) -> None:
     console.print(table)
 
 
-def _launch_desktop_app(exe: str) -> None:
-    cmd = f"Start-Process '{exe}' -ArgumentList '--remote-debugging-port=9222'"
-    subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd],
-        check=False,
-    )
+def _login_by_password() -> str | None:
+    account = console.input("账号/手机号: ").strip()
+    if not account:
+        console.print("账号不能为空。")
+        return None
+    pwd = getpass.getpass("密码(输入不回显): ")
+    if not pwd:
+        console.print("密码不能为空。")
+        return None
+    try:
+        return login_with_password(account, pwd)
+    except Exception as e:
+        console.print(f"[red]登录失败: {e}[/red]")
+        return None
 
 
-def _run_capture_in_new_cmd(timeout_s: int = 600) -> bool:
-    store = ConfigStore()
-    old_token = store.load_token()
-    deadline = time.time() + max(60, timeout_s)
-
-    while time.time() < deadline:
-        try:
-            token = capture_access_token(host="127.0.0.1", port=9222, timeout_s=30)
-            if token and token != old_token:
-                store.save_token(token)
-                return True
-        except TimeoutError:
-            pass
-        except Exception:
-            time.sleep(1)
-        time.sleep(0.5)
-    return False
-
-
-def _build_capture_start_command(timeout_s: int) -> list[str]:
-    capture_cmd = (
-        "python -m plaso_dl auth auto-capture "
-        "--host 127.0.0.1 --port 9222 "
-        f"--timeout {max(60, int(timeout_s))}"
-    )
-    return ["cmd", "/c", "start", "", "cmd", "/k", capture_cmd]
+def _login_menu() -> str | None:
+    while True:
+        console.print("\n[bold]登录方式[/bold]")
+        console.print(LOGIN_METHOD_MENU_TEXT)
+        choice = console.input("请选择: ").strip()
+        if choice == "1":
+            token = _login_by_password()
+            if token:
+                return token
+        elif choice == "2":
+            return None
+        else:
+            console.print("无效选项。")
 
 
 def _course_file_path(course: CourseItem, out_dir: Path) -> Path:
@@ -298,17 +292,14 @@ def _settings_menu() -> None:
     store = ConfigStore()
     cfg = store.load()
     console.print("\n[bold]设置[/bold]")
-    console.print(f"当前伯索程序路径: {cfg.plaso_exe_path}")
     console.print(f"当前下载目录: {cfg.download_dir}")
     console.print(f"当前单视频分片并发: {cfg.part_workers}")
     console.print(f"当前批量下载并发: {cfg.batch_workers}")
 
-    raw_exe = console.input("伯索程序路径 (回车保持不变): ").strip()
     raw_dir = console.input("下载目录 (回车保持不变): ").strip()
     raw_workers = console.input("分片并发 1-8 (回车保持不变): ").strip()
     raw_batch_workers = console.input("批量下载并发 1-6 (回车保持不变): ").strip()
 
-    plaso_exe_path = raw_exe or cfg.plaso_exe_path
     download_dir = raw_dir or cfg.download_dir
     part_workers = cfg.part_workers
     batch_workers = cfg.batch_workers
@@ -326,7 +317,6 @@ def _settings_menu() -> None:
             batch_workers = cfg.batch_workers
 
     store.save_settings(
-        plaso_exe_path=plaso_exe_path,
         download_dir=download_dir,
         part_workers=part_workers,
         batch_workers=batch_workers,
@@ -385,23 +375,10 @@ def main() -> None:
             console.print(LOGGED_IN_MENU_TEXT)
         choice = console.input("请选择: ").strip()
         if choice == "1" and token is None:
-            cfg = ConfigStore().load()
-            if not Path(cfg.plaso_exe_path).exists():
-                console.print("[red]伯索程序路径不存在，请先到设置里修改路径。[/red]")
-                continue
-            console.print("步骤 1/3: 启动伯索云学堂桌面端并开启远程调试...")
-            _launch_desktop_app(cfg.plaso_exe_path)
-            console.print(
-                "步骤 2/3: 自动抓取 token（请在伯索中进入历史课堂并点开任意回放）..."
-            )
-            ok = _run_capture_in_new_cmd(timeout_s=600)
-            if not ok:
-                console.print("[red]Token 抓取超时，请重试。[/red]")
-                continue
-            new_token = ConfigStore().load_token()
+            new_token = _login_menu()
             if not new_token:
-                console.print("[red]Token 抓取失败。[/red]")
                 continue
+            ConfigStore().save_token(new_token)
             console.print("[green]登录成功（已获取 token）。[/green]")
             token = new_token
             selected_items = None

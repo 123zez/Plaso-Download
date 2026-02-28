@@ -14,7 +14,6 @@ class Config:
     download_dir: str = "downloads"
     part_workers: int = 3
     batch_workers: int = 2
-    plaso_exe_path: str = r"D:\PlasoCloud\plaso-yxt.exe"
 
 
 class ConfigStore:
@@ -46,15 +45,11 @@ class ConfigStore:
         if not isinstance(batch_workers, int):
             batch_workers = 2
         batch_workers = max(1, min(batch_workers, 6))
-        plaso_exe_path = data.get("plaso_exe_path")
-        if not isinstance(plaso_exe_path, str) or not plaso_exe_path.strip():
-            plaso_exe_path = r"D:\PlasoCloud\plaso-yxt.exe"
         return Config(
             access_token=token,
             download_dir=download_dir,
             part_workers=part_workers,
             batch_workers=batch_workers,
-            plaso_exe_path=plaso_exe_path,
         )
 
     def save(self, cfg: Config) -> None:
@@ -66,7 +61,6 @@ class ConfigStore:
                     "download_dir": cfg.download_dir,
                     "part_workers": cfg.part_workers,
                     "batch_workers": cfg.batch_workers,
-                    "plaso_exe_path": cfg.plaso_exe_path,
                 },
                 ensure_ascii=True,
                 indent=2,
@@ -87,7 +81,6 @@ class ConfigStore:
                 download_dir=old.download_dir,
                 part_workers=old.part_workers,
                 batch_workers=old.batch_workers,
-                plaso_exe_path=old.plaso_exe_path,
             )
         )
 
@@ -100,7 +93,6 @@ class ConfigStore:
         download_dir: str,
         part_workers: int,
         batch_workers: int,
-        plaso_exe_path: str,
     ) -> None:
         old = self.load()
         self.save(
@@ -109,6 +101,5 @@ class ConfigStore:
                 download_dir=download_dir.strip() or "downloads",
                 part_workers=max(1, min(part_workers, 8)),
                 batch_workers=max(1, min(batch_workers, 6)),
-                plaso_exe_path=plaso_exe_path.strip() or r"D:\PlasoCloud\plaso-yxt.exe",
             )
         )

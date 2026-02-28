@@ -15,7 +15,6 @@ from rich.progress import (
 from rich.table import Table
 
 from .api import list_courses
-from .auth_capture import capture_access_token
 from .config import ConfigStore
 from .download import download_hls_to_mp4
 from .models import CourseItem
@@ -47,20 +46,6 @@ def set_token(token: str) -> None:
     """Save access-token from the desktop app."""
     ConfigStore().save_token(token)
     console.print("Token saved.")
-
-
-@auth_app.command("auto-capture")
-def auto_capture(
-    host: str = typer.Option("127.0.0.1", help="DevTools host"),
-    port: int = typer.Option(9222, help="DevTools port"),
-    timeout: int = typer.Option(180, help="Capture timeout (seconds)"),
-) -> None:
-    """Auto-capture access-token from Electron network requests."""
-    console.print("Waiting for access-token from client network traffic...")
-    console.print("Keep Plaso desktop app open and enter historical classes page.")
-    token = capture_access_token(host=host, port=port, timeout_s=timeout)
-    ConfigStore().save_token(token)
-    console.print("Token captured and saved.")
 
 
 @courses_app.command("list")

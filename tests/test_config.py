@@ -16,7 +16,6 @@ def test_default_launcher_settings(tmp_path: Path) -> None:
     assert cfg.download_dir == "downloads"
     assert cfg.part_workers == 3
     assert cfg.batch_workers == 2
-    assert cfg.plaso_exe_path == r"D:\PlasoCloud\plaso-yxt.exe"
 
 
 def test_backward_compatible_load_old_config_shape(tmp_path: Path) -> None:
@@ -27,4 +26,3 @@ def test_backward_compatible_load_old_config_shape(tmp_path: Path) -> None:
     assert cfg.download_dir == "downloads"
     assert cfg.part_workers == 3
     assert cfg.batch_workers == 2
-    assert cfg.plaso_exe_path == r"D:\PlasoCloud\plaso-yxt.exe"

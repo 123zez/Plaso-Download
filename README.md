@@ -1,6 +1,6 @@
 # plaso-dl
 
-Windows 下的伯索云学堂历史课程下载工具，支持账号密码登录/自动抓 token、按课程或按班级拉视频列表、批量下载、分片自动拼接与时长校验。
+Windows 下的伯索云学堂历史课程下载工具，支持账号密码登录、按课程或按班级拉视频列表、批量下载、分片自动拼接与时长校验。
 
 ## 免责声明
 
@@ -11,9 +11,7 @@ Windows 下的伯索云学堂历史课程下载工具，支持账号密码登录
 ## 功能
 
 - 中文交互入口（开始菜单、登录后菜单、下载菜单）
-- 两种登录方式：
-  - 账号密码直登（调用官方登录接口）
-  - 自动抓取 token（Electron DevTools）
+- 登录方式：账号密码直登（调用官方登录接口）
 - 课程视频加载方式：
   - 获取课程目录（按课程主题）
   - 按班级获取课程视频
@@ -53,7 +51,7 @@ python start_plaso_dl.py
 首次建议：
 
 1. 开始菜单先点 `设置`
-2. 配置伯索程序路径（每个人安装位置可能不同）
+2. 配置下载目录和并发
 3. 再点 `登录`
 
 ## EXE 使用（推荐给普通用户）
@@ -102,7 +100,6 @@ pyinstaller --noconfirm --clean --onefile --name plaso-dl-launcher start_plaso_d
 
 ### 设置菜单
 
-- `伯索程序路径`
 - `下载目录`
 - `单视频分片并发`（1-8）
 - `批量下载并发`（1-6）
@@ -110,7 +107,6 @@ pyinstaller --noconfirm --clean --onefile --name plaso-dl-launcher start_plaso_d
 ## 命令行用法（高级）
 
 ```bash
-python -m plaso_dl auth auto-capture --host 127.0.0.1 --port 9222 --timeout 600
 python -m plaso_dl courses list
 python -m plaso_dl download course --id <course_id>
 python -m plaso_dl download all --workers 3
@@ -125,7 +121,6 @@ plaso-dl/
   src/plaso_dl/
     launcher.py                  # 菜单交互与全流程编排
     api.py                       # 登录/班级/课程接口
-    auth_capture.py              # DevTools 抓 token
     resolve.py                   # m3u8 分片探测
     download.py                  # 下载/合并/时长校验
     ffmpeg.py                    # ffmpeg/ffprobe 封装
@@ -138,7 +133,7 @@ plaso-dl/
 
 ## 常见问题
 
-- 登录失败：先检查账号密码是否正确，或改用“自动抓取 token”。
+- 登录失败：先检查账号密码是否正确。
 - 伯索路径错误：在设置中修改为你机器上的 `plaso-yxt.exe` 实际路径。
 - 下载输出太多：已做静默优化；失败时仅显示关键错误摘要。
 - 时长异常警告：通常是源端分片不完整或仍有隐藏分片未暴露。

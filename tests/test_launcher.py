@@ -1,18 +1,14 @@
 from plaso_dl.launcher import (
     INITIAL_MENU_TEXT,
+    LOGIN_METHOD_MENU_TEXT,
     LOGGED_IN_MENU_TEXT,
-    _build_capture_start_command,
     _infer_topic,
     _is_choose_all_token,
 )
 
 
-def test_build_capture_start_command_uses_empty_title() -> None:
-    cmd = _build_capture_start_command(timeout_s=600)
-    assert cmd[:3] == ["cmd", "/c", "start"]
-    assert cmd[3] == ""
-    assert cmd[4:6] == ["cmd", "/k"]
-    assert "python -m plaso_dl auth auto-capture" in cmd[6]
+def test_login_method_menu_has_password_login() -> None:
+    assert "账号密码登录" in LOGIN_METHOD_MENU_TEXT
 
 
 def test_logged_in_menu_text_is_chinese() -> None:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import time
+import uuid
 from typing import Any, cast
 
 import httpx
@@ -14,6 +16,7 @@ LIVECLASS_HISTORY_PATH = "/liveclassgo/api/v1/history/listRecord"
 COURSE_LIST_PATH = "/course/api/v1/m/package/student/list"
 COURSE_LIST_PATH_FALLBACK = "/course/api/v1/m/package/student/list/quit"
 GROUP_LIST_PATH = "/gt/servlet/oldgroup/getSimplifiedGroupsInfo"
+LOGIN_PATH = "/custom/usr/doLogin"
 
 
 def _to_int(v: Any) -> int | None:
@@ -152,6 +155,63 @@ def _headers(access_token: str) -> dict[str, str]:
         "version": "5.64.114",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) plaso_client/1.07.137 Chrome/89.0.4389.128 Electron/12.0.18 Safari/537.36",
     }
+
+
+def _preview_headers() -> dict[str, str]:
+    return _headers("previewToken")
+
+
+def extract_access_token_from_login_response(data: dict[str, Any]) -> str | None:
+    if not isinstance(data, dict):
+        return None
+    if data.get("code") != 0:
+        return None
+    obj = data.get("obj")
+    if not isinstance(obj, dict):
+        return None
+    token = obj.get("access_token")
+    if isinstance(token, str) and token.strip():
+        return token.strip()
+    return None
+
+
+def login_with_password(
+    login_name: str, password_plain: str, *, timeout_s: float = 30.0
+) -> str:
+    login_name = login_name.strip()
+    password_plain = password_plain.strip()
+    if not login_name or not password_plain:
+        raise RuntimeError("账号或密码为空")
+
+    payload = {
+        "rawName": login_name,
+        "name": login_name,
+        "passwd": hashlib.md5(password_plain.encode("utf-8")).hexdigest(),
+        "loginName": login_name,
+        "clientVersion": "5.64.114",
+        "deviceId": f"windows-{uuid.uuid4()}",
+        "deviceName": "PC",
+        "role": 1,
+        "version": "12.0.18_5.64.114",
+        "systemInfo": "10.0.26200 ia32 1.07.137",
+        "osInfo": "Windows_NT",
+    }
+    with httpx.Client(timeout=timeout_s) as client:
+        r = client.post(
+            f"{PLASO_BASE}{LOGIN_PATH}",
+            headers=_preview_headers(),
+            json=payload,
+        )
+        r.raise_for_status()
+        data = r.json()
+    if not isinstance(data, dict):
+        raise RuntimeError("登录响应格式异常")
+
+    token = extract_access_token_from_login_response(data)
+    if token:
+        return token
+
+    raise RuntimeError(f"登录失败: code={data.get('code')!r}, msg={data.get('msg')!r}")
 
 
 def list_courses(
