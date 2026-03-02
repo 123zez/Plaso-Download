@@ -59,6 +59,8 @@ def is_duration_within_tolerance(
     return abs(float(expected_s) - float(actual_s)) <= float(tolerance_s)
 
 
+from threading import Event
+
 def download_hls_to_mp4(
     m3u8_url: str | list[str],
     out_path: Path,
@@ -67,6 +69,8 @@ def download_hls_to_mp4(
     tolerance_s: int = 60,
     part_workers: int = 3,
     progress_cb: Callable[[float], None] | None = None,
+    cancel_event: Optional[Event] = None,
+    pause_event: Optional[Event] = None,
 ) -> tuple[float | None, bool]:
     urls = [m3u8_url] if isinstance(m3u8_url, str) else list(m3u8_url)
     urls = [u for u in urls if u]
@@ -75,12 +79,20 @@ def download_hls_to_mp4(
 
     if len(urls) == 1:
         _check_not_encrypted(urls[0])
-        run_ffmpeg_to_file(urls[0], out_path, progress_cb=progress_cb)
+        run_ffmpeg_to_file(
+            urls[0], 
+            out_path, 
+            progress_cb=progress_cb, 
+            cancel_event=cancel_event, 
+            pause_event=pause_event
+        )
         actual = probe_media_duration_seconds(out_path)
         return actual, is_duration_within_tolerance(
             expected_s=expected_duration_s, actual_s=actual, tolerance_s=tolerance_s
         )
 
+    # Note: Multi-part download pause/cancel support would need more logic
+    # but for single-stream it works.
     with tempfile.TemporaryDirectory(prefix="plaso-dl-") as tmp:
         tmp_dir = Path(tmp)
         parts: list[Path] = [

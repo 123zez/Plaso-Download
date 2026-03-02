@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import time
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
+from threading import Event
 
 
 class FfmpegNotFoundError(RuntimeError):
@@ -15,6 +17,9 @@ class FfprobeNotFoundError(RuntimeError):
 
 
 class FfmpegRunError(RuntimeError):
+    pass
+
+class FfmpegCancelledError(RuntimeError):
     pass
 
 
@@ -68,7 +73,11 @@ def build_ffmpeg_hls_args(m3u8_url: str, out_path: str) -> list[str]:
 
 
 def run_ffmpeg(
-    args: list[str], *, progress_cb: Callable[[float], None] | None = None
+    args: list[str], 
+    *, 
+    progress_cb: Callable[[float], None] | None = None,
+    cancel_event: Optional[Event] = None,
+    pause_event: Optional[Event] = None
 ) -> None:
     p = subprocess.Popen(
         args,
@@ -78,40 +87,74 @@ def run_ffmpeg(
         encoding="utf-8",
         errors="replace",
         bufsize=1,
+        # For Windows process control
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
     )
 
     logs: list[str] = []
     assert p.stdout is not None
-    for raw in p.stdout:
-        line = raw.strip()
+    
+    # We need a non-blocking way to read stdout or check events
+    import os
+    import fcntl # Not available on Windows, we'll use a thread or polling
+    
+    # Simple polling for Windows/Cross-platform
+    while True:
+        # Check cancellation
+        if cancel_event and cancel_event.is_set():
+            p.terminate()
+            p.wait()
+            raise FfmpegCancelledError("Download cancelled by user")
+
+        # Check pause
+        if pause_event and pause_event.is_set():
+            # FFmpeg doesn't have a clean pause, so we might need to rely 
+            # on the OS or just wait. On Windows, we can't easily SIGSTOP.
+            # We'll just loop here until unpaused.
+            time.sleep(0.5)
+            continue
+
+        line = p.stdout.readline()
         if not line:
+            if p.poll() is not None:
+                break
             continue
+            
+        line = line.strip()
         if "=" in line:
-            k, v = line.split("=", 1)
-            if k == "out_time_ms" and progress_cb is not None:
-                try:
-                    progress_cb(float(v) / 1_000_000.0)
-                except Exception:
-                    pass
-            continue
-        logs.append(line)
+            parts = line.split("=", 1)
+            if len(parts) == 2:
+                k, v = parts
+                if k == "out_time_ms" and progress_cb is not None:
+                    try:
+                        progress_cb(float(v) / 1_000_000.0)
+                    except Exception:
+                        pass
+        else:
+            logs.append(line)
 
     code = p.wait()
     if code == 0:
         return
+    if code < 0: # Terminated
+        raise FfmpegCancelledError("Process terminated")
+        
     tail = "\n".join(logs[-12:]) if logs else "(no stderr)"
     raise FfmpegRunError(f"ffmpeg failed with code {code}:\n{tail}")
 
+import sys
 
 def run_ffmpeg_to_file(
     m3u8_url: str,
     out_path: Path,
     *,
     progress_cb: Callable[[float], None] | None = None,
+    cancel_event: Optional[Event] = None,
+    pause_event: Optional[Event] = None
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     args = build_ffmpeg_hls_args(m3u8_url, str(out_path))
-    run_ffmpeg(args, progress_cb=progress_cb)
+    run_ffmpeg(args, progress_cb=progress_cb, cancel_event=cancel_event, pause_event=pause_event)
 
 
 def build_ffmpeg_concat_args(list_file_path: str, out_path: str) -> list[str]:

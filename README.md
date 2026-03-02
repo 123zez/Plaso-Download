@@ -1,139 +1,106 @@
-# plaso-dl
+# Plaso-DL (伯索云学堂赛博下载器)
 
-Windows 下的伯索云学堂历史课程下载工具，支持账号密码登录、按课程或按班级拉视频列表、批量下载、分片自动拼接与时长校验。
+Windows 下的伯索云学堂历史课程下载工具。支持账号密码登录、按课程/班级拉取视频、批量高并发下载、分片自动拼接及时长校验。
 
-## 免责声明
+本项目现已提供**赛博朋克风格 Web 界面**与**经典交互命令行**双重模式，支持一键打包为单体 EXE，让普通用户也能轻松驾驭。
 
-- 仅用于你有权限访问的课程内容。
-- 不提供 DRM 解密能力。
-- 不提供绕过付费、验证码、平台安全策略的能力。
+---
 
-## 功能
+## 🎯 设计思路与工作原理
 
-- 中文交互入口（开始菜单、登录后菜单、下载菜单）
-- 登录方式：账号密码直登（调用官方登录接口）
-- 课程视频加载方式：
-  - 获取课程目录（按课程主题）
-  - 按班级获取课程视频
-  - 一键加载全部课程视频（在课程目录选择时输入 `0/A/all/全部`）
-- 下载能力：
-  - 单个/多个/全部/仅补缺
-  - 自动识别多分片流（如 `s1/s101/s201/...`）并合并
-  - 下载后时长校验（默认容差 1 分钟）
-- 下载展示：
-  - 每个视频独立动态进度条
-  - 总体进度条
-  - 结束后总结：成功/跳过/警告/失败 + 失败详情
+### 1. 核心逻辑
+伯索云学堂的视频流基于 HLS (m3u8) 协议。本项目通过模拟官方客户端的 API 调用流程，实现从授权登录到视频落地的全自动化：
+- **身份核验**：通过 `login` 接口获取敏感的 `access-token`，并利用 `ConfigStore` 实现跨会话持久化。
+- **元数据抓取**：根据 Token 递归拉取用户的课程档案或指定班级的录播记录。
+- **流媒体解析**：解析 m3u8 播放列表，获取所有 `.ts` 切片的 CDN 真实链路，自动识别并跳过受加密保护的内容。
+- **并发传输引擎**：采用 Python 多线程池同步下载多个视频分片，极大限度利用带宽。
+- **无损合成**：利用 `FFmpeg` 强大的转码能力，将分片序列实时拼接成完整的 `mp4` 容器，并进行最终时长校验确保数据完整性。
 
-## 环境要求
+### 2. 双模交互体系
+- **Cyber Web UI (可视化模式)**：
+  - 前端采用 **Vue 3 + Tailwind CSS**，构建极具沉浸感的赛博朋克控制台。
+  - 后端基于 **FastAPI**，通过 **WebSocket** 建立实时双向链路，将下载进度实时“泵”向前端，提供秒级刷新的进度反馈。
+- **Classic CLI (极客模式)**：
+  - 基于 **Rich** 库实现的交互式终端，提供彩色表格、任务树和原生进度条，适合开发者或习惯终端操作的用户。
 
-- Windows
-- Python `3.10+`（源码运行时）
-- `ffmpeg` 和 `ffprobe` 可用（加入 PATH）
+---
 
-验证：
+## 🛠️ 技术栈概览
 
-```bash
-ffmpeg -version
-ffprobe -version
-```
+- **服务端**: Python `3.10+`
+- **Web 框架**: `FastAPI` (高并发异步支持)
+- **实时通信**: `WebSockets` (进度实时推流)
+- **请求处理**: `httpx` (支持 HTTP/2)
+- **终端美化**: `Rich` (高级 CLI 渲染)
+- **前端架构**: `Vue 3 (Composition API)`
+- **UI 风格**: `Tailwind CSS` (定制赛博暗黑主题)
+- **数据持有**: `platformdirs` (标准应用配置存储)
+- **外部引擎**: `FFmpeg` (核心处理引擎)
 
-## 快速开始（源码运行）
+---
 
-```bash
-cd <你的项目目录>
-python -m venv .venv
-.venv\Scripts\python -m pip install -U pip
-.venv\Scripts\python -m pip install -e .[dev]
-python start_plaso_dl.py
-```
-
-首次建议：
-
-1. 开始菜单先点 `设置`
-2. 配置下载目录和并发
-3. 再点 `登录`
-
-## EXE 使用（推荐给普通用户）
-
-已打包入口：
-
-- `dist/plaso-dl-launcher.exe`
-
-直接双击运行即可。
-
-说明：
-
-- 配置文件保存在用户目录（不会跟随 exe 删除）
-- 仍需要系统可用 `ffmpeg/ffprobe`
-
-### 自己重新打包
-
-```bash
-python -m pip install pyinstaller
-pyinstaller --noconfirm --clean --onefile --name plaso-dl-launcher start_plaso_dl.py
-```
-
-输出：`dist/plaso-dl-launcher.exe`
-
-## 菜单说明
-
-### 开始菜单
-
-- `登录`
-- `设置`
-- `退出`
-
-### 登录后菜单
-
-- `获取课程目录`
-- `按班级获取课程视频`
-- `设置`
-- `退出`
-
-### 下载菜单
-
-- `单个下载`：按序号或课程 id 下载
-- `多个下载`：逗号分隔输入多个序号/id
-- `全部下载`：下载当前列表全部课程视频
-- `更新(仅缺失)`：只下载目标目录缺失的视频
-
-### 设置菜单
-
-- `下载目录`
-- `单视频分片并发`（1-8）
-- `批量下载并发`（1-6）
-
-## 命令行用法（高级）
-
-```bash
-python -m plaso_dl courses list
-python -m plaso_dl download course --id <course_id>
-python -m plaso_dl download all --workers 3
-```
-
-## 项目结构
+## 📂 项目结构
 
 ```text
 plaso-dl/
-  start_plaso_dl.py              # 一键入口脚本
-  dist/plaso-dl-launcher.exe     # 打包后的可执行文件
-  src/plaso_dl/
-    launcher.py                  # 菜单交互与全流程编排
-    api.py                       # 登录/班级/课程接口
-    resolve.py                   # m3u8 分片探测
-    download.py                  # 下载/合并/时长校验
-    ffmpeg.py                    # ffmpeg/ffprobe 封装
-    config.py                    # 配置持久化
-    cli.py                       # CLI 命令入口
-    models.py                    # 数据模型
-    util.py                      # 工具函数
-  tests/
+  ├── plaso_dl_app.py        # 💥 [入口] 统一双模启动主程序 (支持打包)
+  ├── build_exe.bat          # 一键打包脚本 (优化 UTF-8 输出)
+  │
+  ├── src/plaso_dl/
+  │   ├── server.py          # FastAPI 服务端逻辑 (含下载调度队列)
+  │   ├── static/
+  │   │   └── index.html     # 赛博朋克可视化控制面板 (Vue 单文件应用)
+  │   │
+  │   ├── launcher.py        # 命令行菜单驱动逻辑
+  │   ├── api.py             # 伯索官方 API 封装层
+  │   ├── download.py        # 并发下载与 FFmpeg 合并逻辑
+  │   ├── config.py          # 用户偏好与授权信息持久化
+  │   └── util.py            # 文件名清洗与单位转换工具
+  │
+  └── dist/                  # 打包后的单体可执行文件
 ```
 
-## 常见问题
+---
 
-- 登录失败：先检查账号密码是否正确。
-- 伯索路径错误：在设置中修改为你机器上的 `plaso-yxt.exe` 实际路径。
-- 下载输出太多：已做静默优化；失败时仅显示关键错误摘要。
-- 时长异常警告：通常是源端分片不完整或仍有隐藏分片未暴露。
+## 🚀 使用指南 (普通用户)
+
+### 1. 核心前置：安装 FFmpeg
+无论您使用源码还是 EXE，系统中必须配置好 FFmpeg：
+1. 下载 [FFmpeg Windows 版](https://www.ffmpeg.org/download.html)。
+2. 解压后将 `bin` 文件夹路径添加至系统的 **环境变量 PATH** 中。
+3. 在终端输入 `ffmpeg -version` 看到版本信息即代表配置成功。
+
+### 2. 运行程序
+1. **直接运行 EXE**：双击 `Plaso-DL-App.exe`。
+2. **模式选择**：
+   - 输入 `1`：进入**赛博网页版**。程序会自动拉起浏览器，您可以在漂亮的控制面板中完成登录、筛选和批量下载。
+   - 输入 `2`：进入**经典命令行**。在终端中通过数字编号完成所有操作。
+
+---
+
+## 👨‍💻 开发者/打包指南
+
+### 1. 安装依赖环境
+```bash
+pip install -e .
+pip install pyinstaller
+```
+
+### 2. 源码启动
+```bash
+python plaso_dl_app.py
+```
+
+### 3. 一键打包
+项目已为您配置好打包脚本，直接在根目录运行：
+```bash
+build_exe.bat
+```
+打包后的 EXE 将存放在 `dist/Plaso-DL-App.exe`。
+
+---
+
+## ⚠️ 免责声明
+- 本工具仅供个人学习及课程复习使用，请确保您对下载的内容拥有合法访问权限。
+- 不提供 DRM 解密及非法绕过策略。
+- 严禁将本程序用于商业用途或非法传播。

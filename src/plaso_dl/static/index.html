@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLASO-DL 赛博控制台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+SC:wght@400;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root { --neon-blue: #00f3ff; --neon-purple: #bc13fe; --dark-bg: #0a0b1e; }
+        body {
+            background-color: var(--dark-bg); color: #e0e0e0;
+            font-family: 'JetBrains Mono', 'Noto Sans SC', monospace;
+            background-image: radial-gradient(circle at 20% 30%, rgba(0, 243, 255, 0.05) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(188, 19, 254, 0.05) 0%, transparent 40%);
+            min-height: 100vh;
+        }
+        .cyber-font { font-family: 'Orbitron', 'Noto Sans SC', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); }
+        .neon-border { border: 1px solid var(--neon-blue); box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); }
+        .neon-text { text-shadow: 0 0 10px var(--neon-blue); }
+        .progress-bar { height: 4px; background: rgba(255,255,255,0.1); overflow: hidden; position: relative; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple)); transition: width 0.3s ease; box-shadow: 0 0 10px var(--neon-blue); }
+        input, select { background: rgba(0,0,0,0.4) !important; border: 1px solid rgba(255,255,255,0.2) !important; color: white !important; }
+        input:focus { border-color: var(--neon-blue) !important; outline: none; }
+        .btn-cyber { background: linear-gradient(45deg, var(--neon-blue), var(--neon-purple)); color: black; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; transition: all 0.3s; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%); }
+        .btn-cyber:hover { transform: scale(1.05); box-shadow: 0 0 20px var(--neon-blue); }
+        .sidebar-item { transition: all 0.3s; border-left: 3px solid transparent; }
+        .sidebar-item.active { background: rgba(0, 243, 255, 0.1); border-left: 3px solid var(--neon-blue); color: var(--neon-blue); }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--neon-blue); }
+    </style>
+</head>
+<body class="p-0 m-0">
+    <div id="app" class="flex h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 glass border-r border-white/10 flex flex-col">
+            <div class="p-6">
+                <h1 class="cyber-font text-2xl font-bold neon-text text-cyan-400">PLASO-DL</h1>
+                <p class="text-[10px] opacity-50 mt-1">v0.1.0 // 系统核心</p>
+            </div>
+            <nav class="flex-1 mt-4">
+                <div v-for="m in menus" :key="m.id" @click="currentTab = m.id" :class="['sidebar-item p-4 cursor-pointer flex items-center space-x-3', currentTab === m.id ? 'active' : 'opacity-60 hover:opacity-100']">
+                    <span class="text-lg">{{ m.icon }}</span>
+                    <span class="cyber-font text-xs uppercase tracking-widest">{{ m.name }}</span>
+                </div>
+            </nav>
+            <div class="p-4 border-t border-white/10 space-y-4">
+                <div v-if="config.is_logged_in" @click="handleLogout" class="sidebar-item p-2 cursor-pointer flex items-center space-x-3 opacity-60 hover:opacity-100 text-red-400 hover:bg-red-500/10">
+                    <span class="text-lg">🚪</span>
+                    <span class="cyber-font text-[10px] uppercase tracking-widest">退出登录</span>
+                </div>
+                <div class="flex items-center space-x-2 text-[10px]">
+                    <div :class="['w-2 h-2 rounded-full', isConnected ? 'bg-green-500 shadow-[0_0_5px_#22c55e]' : 'bg-red-500']"></div>
+                    <span class="opacity-70 uppercase">{{ isConnected ? '链路正常' : '链路中断' }}</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-hidden flex flex-col relative">
+            <header class="h-16 glass border-b border-white/10 flex items-center justify-between px-8 z-10">
+                <div class="flex items-center space-x-4">
+                    <span class="text-xs opacity-50 uppercase tracking-tighter">当前板块:</span>
+                    <span class="text-xs cyber-font text-cyan-400 uppercase tracking-widest">{{ getTabName(currentTab) }}</span>
+                </div>
+                <div class="flex items-center space-x-6 text-xs">
+                    <div v-if="config.is_logged_in" class="flex items-center space-x-2 text-green-400">
+                        <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                        <span>授权访问已开启</span>
+                    </div>
+                    <div v-else class="text-red-400">访问未授权</div>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-y-auto p-8 custom-scroll">
+                <!-- LOGIN TAB -->
+                <section v-if="currentTab === 'auth'" class="max-w-md mx-auto mt-20">
+                    <div class="glass p-8 rounded-lg neon-border">
+                        <h2 class="cyber-font text-xl mb-6 text-center">身份凭证核验</h2>
+                        <div class="space-y-4">
+                            <div><label class="text-[10px] opacity-50 uppercase mb-1 block">账号 / 手机号</label><input v-model="loginForm.account" type="text" class="w-full p-3 rounded" placeholder="请输入账号"></div>
+                            <div><label class="text-[10px] opacity-50 uppercase mb-1 block">安全密钥 (密码)</label><input v-model="loginForm.password" type="password" class="w-full p-3 rounded" placeholder="请输入密码"></div>
+                            <button @click="handleLogin" :disabled="loading" class="btn-cyber w-full py-4 mt-4 disabled:opacity-50">{{ loading ? '核验中...' : '初始化连接' }}</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- COURSES TAB -->
+                <section v-if="currentTab === 'courses'">
+                    <div class="flex justify-between items-end mb-8">
+                        <div><h2 class="cyber-font text-2xl text-cyan-400">数据档案库</h2><p class="text-xs opacity-50 mt-1">选择待检索的数据包</p></div>
+                        <div class="flex space-x-4">
+                            <select v-model="selectedGroup" @change="fetchCourses" class="p-2 text-xs rounded glass"><option value="">所有扇区 (全部班级)</option><option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option></select>
+                            <button @click="downloadSelected" class="btn-cyber px-6 py-2 text-xs">提取选中项 ({{ selectedCourses.length }})</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div v-for="c in courses" :key="c.id" @click="toggleCourse(c)" :class="['glass p-4 rounded-lg cursor-pointer border transition-all', selectedCourses.includes(c.id) ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/5 hover:border-white/20']">
+                            <div class="flex justify-between items-start mb-2"><span class="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/70 tracking-tighter">ID: {{ c.id.substring(0,8) }}...</span><span class="text-[10px] text-cyan-400">{{ formatDuration(c.duration) }}</span></div>
+                            <h3 class="text-sm font-bold mb-1 truncate">{{ c.name }}</h3>
+                            <p class="text-[10px] opacity-50 italic">讲师: {{ c.teacher || '未知' }}</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- DOWNLOADS TAB -->
+                <section v-if="currentTab === 'downloads'">
+                    <h2 class="cyber-font text-2xl mb-8 text-cyan-400">传输队列</h2>
+                    <div class="space-y-4">
+                        <div v-for="d in sortedDownloads" :key="d.course_id" class="glass p-6 rounded-lg border border-white/5 relative overflow-hidden">
+                            <div v-if="d.status === 'downloading'" class="absolute top-0 left-0 w-full h-0.5 bg-cyan-500/20"><div class="h-full bg-cyan-500 animate-pulse shadow-[0_0_10px_#00f3ff]"></div></div>
+                            <div class="flex justify-between items-center">
+                                <div class="flex-1">
+                                    <h4 class="text-sm font-bold">{{ d.name || '正在检索元数据...' }}</h4>
+                                    <div class="flex items-center space-x-4 mt-2">
+                                        <span :class="['text-[10px] uppercase font-bold', getStatusClass(d.status)]">{{ getStatusText(d.status) }}</span>
+                                        <div v-if="d.status === 'downloading' || d.status === 'paused'" class="flex space-x-2 ml-4">
+                                            <button v-if="d.status === 'downloading'" @click="pauseTask(d.course_id)" class="text-[8px] border border-cyan-500/30 px-2 py-0.5 rounded hover:bg-cyan-500/10">暂停</button>
+                                            <button v-if="d.status === 'paused'" @click="resumeTask(d.course_id)" class="text-[8px] border border-green-500/30 px-2 py-0.5 rounded hover:bg-green-500/10 text-green-400">继续</button>
+                                            <button @click="cancelTask(d.course_id)" class="text-[8px] border border-red-500/30 px-2 py-0.5 rounded hover:bg-red-500/10 text-red-400">取消</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-right w-32">
+                                    <div class="text-xs cyber-font">{{ d.progress || 0 }}%</div>
+                                    <div class="progress-bar mt-2"><div class="progress-fill" :style="{ width: (d.progress || 0) + '%' }"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-if="Object.keys(downloads).length === 0" class="text-center py-20 opacity-30"><p class="cyber-font text-xl">无活跃传输任务</p></div>
+                    </div>
+                </section>
+
+                <!-- SETTINGS TAB -->
+                <section v-if="currentTab === 'settings'" class="max-w-2xl mx-auto">
+                    <div class="glass p-8 rounded-lg border border-white/10">
+                        <h2 class="cyber-font text-xl mb-8 border-b border-white/10 pb-4">核心系统配置</h2>
+                        <div class="space-y-6">
+                            <div class="grid grid-cols-2 gap-6">
+                                <div><label class="text-[10px] opacity-50 uppercase mb-2 block">数据存储目录</label><input v-model="config.download_dir" type="text" class="w-full p-2 text-sm rounded"></div>
+                                <div><label class="text-[10px] opacity-50 uppercase mb-2 block">单视频并发数 (1-8)</label><input v-model.number="config.part_workers" type="number" min="1" max="8" class="w-full p-2 text-sm rounded"></div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-6">
+                                <div><label class="text-[10px] opacity-50 uppercase mb-2 block">批量任务并发数 (1-6)</label><input v-model.number="config.batch_workers" type="number" min="1" max="6" class="w-full p-2 text-sm rounded"></div>
+                            </div>
+                            <button @click="saveSettings" class="btn-cyber px-8 py-3 text-xs mt-4">覆盖系统设置</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <footer class="h-8 glass border-t border-white/10 px-8 flex items-center justify-between text-[8px] opacity-50 uppercase tracking-[0.2em]">
+                <div>OS: WIN32 // ARCH: X64 // 核心版本: PLASO-CORE-v1.0</div>
+                <div class="flex space-x-8"><span>CPU 负载: 2%</span><span>内存占用: 124MB</span><span>网络: 安全加密连接</span></div>
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, computed } = Vue;
+        createApp({
+            setup() {
+                const currentTab = ref('auth'); const isConnected = ref(false); const loading = ref(false);
+                const menus = [{ id: 'auth', name: '身份核验', icon: '🔑' }, { id: 'courses', name: '数据档案', icon: '📁' }, { id: 'downloads', name: '传输队列', icon: '🚀' }, { id: 'settings', name: '系统配置', icon: '⚙️' }];
+                const config = ref({ is_logged_in: false, download_dir: '', part_workers: 3, batch_workers: 2 });
+                const loginForm = ref({ account: '', password: '' }); const groups = ref([]); const courses = ref([]); const selectedGroup = ref(''); const selectedCourses = ref([]); const downloads = ref({});
+                const getTabName = (id) => menus.find(x => x.id === id)?.name || id;
+                const getStatusText = (s) => ({ 'downloading': '正在传输', 'ok': '传输完成', 'error': '传输失败', 'warn': '时长不匹配', 'skip': '已跳过', 'queued': '等待中', 'paused': '已暂停', 'cancelled': '已取消' }[s] || s);
+                const getStatusClass = (s) => ({ 'downloading': 'text-cyan-400', 'ok': 'text-green-400', 'error': 'text-red-400', 'warn': 'text-yellow-400', 'skip': 'text-blue-400', 'queued': 'text-white/30', 'paused': 'text-orange-400', 'cancelled': 'text-red-600' }[s] || '');
+                
+                const fetchConfig = async () => { const res = await fetch('/api/config'); config.value = await res.json(); if (config.value.is_logged_in && currentTab.value === 'auth') currentTab.value = 'courses'; };
+                const fetchGroups = async () => { if (config.value.is_logged_in) { const res = await fetch('/api/groups'); groups.value = await res.json(); } };
+                const fetchCourses = async () => { if (config.value.is_logged_in) { loading.value = true; const url = selectedGroup.value ? `/api/courses?group_id=${selectedGroup.value}` : '/api/courses'; const res = await fetch(url); courses.value = await res.json(); loading.value = false; } };
+
+                const handleLogin = async () => {
+                    loading.value = true;
+                    try {
+                        const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loginForm.value) });
+                        if (res.ok) { await fetchConfig(); await fetchGroups(); await fetchCourses(); currentTab.value = 'courses'; }
+                        else { alert('验证失败: ' + (await res.json()).detail); }
+                    } finally { loading.value = false; }
+                };
+
+                const handleLogout = async () => {
+                    const deleteInfo = confirm('确定要退出登录吗？\n\n点击“确定”：退出当前连接。\n点击“取消”：继续保持。');
+                    if (!deleteInfo) return;
+                    const clearAll = confirm('是否要彻底擦除本地缓存的账号和配置信息？\n（擦除后下次启动需重新输入）');
+                    const res = await fetch(`/api/logout?delete_config=${clearAll}`, { method: 'POST' });
+                    if (res.ok) { 
+                        config.value.is_logged_in = false; currentTab.value = 'auth'; courses.value = []; groups.value = []; 
+                        loginForm.value.account = ''; loginForm.value.password = ''; downloads.value = {};
+                    }
+                };
+
+                const pauseTask = (id) => fetch(`/api/download/pause/${id}`, { method: 'POST' });
+                const resumeTask = (id) => fetch(`/api/download/resume/${id}`, { method: 'POST' });
+                const cancelTask = (id) => { if(confirm('确定要取消此传输任务吗？')) fetch(`/api/download/cancel/${id}`, { method: 'POST' }); };
+
+                const downloadSelected = async () => {
+                    const items = courses.value.filter(c => selectedCourses.value.includes(c.id)).map(c => ({ id: c.id, name: c.name, location: c.location, duration: c.duration }));
+                    if (items.length === 0) return;
+                    items.forEach(i => { downloads.value[i.id] = { course_id: i.id, name: i.name, progress: 0, status: 'queued', msg: '等待传输队列...' }; });
+                    const res = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
+                    if (res.ok) { currentTab.value = 'downloads'; selectedCourses.value = []; }
+                };
+
+                const connectWS = () => {
+                    const ws = new WebSocket(`${window.location.protocol==='https:'?'wss:':'ws:'}//${window.location.host}/ws`);
+                    ws.onopen = () => isConnected.value = true;
+                    ws.onclose = () => { isConnected.value = false; setTimeout(connectWS, 3000); };
+                    ws.onmessage = (e) => {
+                        const d = JSON.parse(e.data);
+                        if (d.type === 'progress') {
+                            if (!downloads.value[d.course_id]) downloads.value[d.course_id] = { name: courses.value.find(x=>x.id===d.course_id)?.name || '未知项' };
+                            const item = downloads.value[d.course_id]; item.status = d.status; item.msg = d.msg;
+                            if (d.total > 0) item.progress = Math.round((d.completed / d.total) * 100);
+                            else if (d.status === 'ok') item.progress = 100;
+                        }
+                    };
+                };
+
+                onMounted(async () => { await fetchConfig(); if (config.value.is_logged_in) { fetchGroups(); fetchCourses(); } connectWS(); });
+                return { currentTab, isConnected, loading, menus, config, loginForm, groups, courses, selectedGroup, selectedCourses, downloads, handleLogin, handleLogout, pauseTask, resumeTask, cancelTask, downloadSelected, formatDuration: (s) => { if(!s) return '??:??'; const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60; return `${h>0?h+':':''}${m.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`; }, getStatusClass, sortedDownloads: computed(() => Object.values(downloads.value).sort((a,b) => a.status==='downloading'?-1:b.status==='downloading'?1:0)), getTabName, getStatusText };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
