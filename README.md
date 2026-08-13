@@ -1,3 +1,5 @@
+
+
 # Plaso-DL (伯索云学堂赛博下载器)
 
 Windows 下的伯索云学堂历史课程下载工具。支持账号密码登录、按课程/班级拉取视频、批量高并发下载、分片自动拼接及时长校验。
@@ -90,6 +92,7 @@ pip install pyinstaller
 ```bash
 python plaso_dl_app.py
 ```
+*注：若需直接运行 Web UI 或 CLI，可分别执行 `python start_web_ui.py` 或 `python start_plaso_dl.py`。*
 
 ### 3. 一键打包
 项目已为您配置好打包脚本，直接在根目录运行：
